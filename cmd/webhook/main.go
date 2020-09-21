@@ -1,19 +1,13 @@
 package main
 
 import (
-	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"flag"
-	"fmt"
 	"github.com/greboid/irc/v2/logger"
+	"github.com/greboid/irc/v2/plugins"
 	"github.com/greboid/irc/v2/rpc"
 	"github.com/kouhin/envflag"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"io"
 	"net/http"
 	"strings"
 )
@@ -27,77 +21,43 @@ var (
 
 	DBPath        = flag.String("db-path", "/data/db", "Path to token database")
 	AdminKey      = flag.String("admin-key", "", "Admin key for API")
+	db            *DB
+	helper        plugins.PluginHelper
 	WebPathPrefix = "webhook"
 )
-
-type webPlugin struct {
-	db       *DB
-	adminKey string
-	RPCConn  *grpc.ClientConn
-	Channel  string
-	log      *zap.SugaredLogger
-}
 
 func main() {
 	log := logger.CreateLogger(*Debug)
 	log.Infof("Starting webhook plugin")
-	if err := envflag.Parse(); err != nil {
-		log.Fatalf("Unable to load config: %s", err.Error())
-		return
-	}
-	db, err := NewDB(*DBPath)
+	err := envflag.Parse()
 	if err != nil {
 		log.Fatalf("Unable to load config: %s", err.Error())
 		return
 	}
-	creds := credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", *RPCHost, *RPCPort), grpc.WithTransportCredentials(creds))
-	defer func() { _ = conn.Close() }()
+	db, err = NewDB(*DBPath)
 	if err != nil {
-		log.Panicf("Unable to load create RPC: %s", err.Error())
-	}
-	plugin := webPlugin{
-		db:       db,
-		adminKey: *AdminKey,
-		RPCConn:  conn,
-		log:      log,
-	}
-	plugin.run()
-}
-
-func (p *webPlugin) run() {
-	client := rpc.NewHTTPPluginClient(p.RPCConn)
-	stream, err := client.GetRequest(rpc.CtxWithTokenAndPath(context.Background(), "bearer", *RPCToken, WebPathPrefix))
-	if err != nil {
-		p.log.Errorf("Unable to connect to RPC")
+		log.Fatalf("Unable to load config: %s", err.Error())
 		return
 	}
-	for {
-		request, err := stream.Recv()
-		if err == io.EOF {
-			p.log.Debugf("RPC ended.")
-			return
-		}
-		if err != nil {
-			p.log.Errorf("Error talking to RPC: %s", err.Error())
-			return
-		}
-		response := p.handleWebhook(request)
-		err = stream.Send(response)
-		if err != nil {
-			p.log.Errorf("Error sending response: %s", err.Error())
-			continue
-		}
+	helper, err = plugins.NewHelper(*RPCHost, uint16(*RPCPort), *RPCToken)
+	if err != nil {
+		log.Fatalf("Unable to create helper: %s", err.Error())
+		return
+	}
+	err = helper.RegisterWebhook(WebPathPrefix, handleWebhook)
+	if err != nil {
+		log.Fatalf("Unable to create helper: %s", err.Error())
+		return
 	}
 }
 
-func (p *webPlugin) checkAuth(request *rpc.HttpRequest) (bool, error) {
+func checkAuth(request *rpc.HttpRequest) (bool, error) {
 	for index := range request.Header {
 		if strings.ToLower(request.Header[index].Key) == "x-api-key" {
-			if request.Header[index].Value == p.adminKey {
+			if request.Header[index].Value == *AdminKey {
 				return true, nil
 			}
-			if p.db.CheckUser(request.Header[index].Value) {
+			if db.CheckUser(request.Header[index].Value) {
 				return false, nil
 			}
 		}
@@ -105,9 +65,8 @@ func (p *webPlugin) checkAuth(request *rpc.HttpRequest) (bool, error) {
 	return false, errors.New("unauthorized")
 }
 
-func (p *webPlugin) handleWebhook(request *rpc.HttpRequest) *rpc.HttpResponse {
-	client := rpc.NewIRCPluginClient(p.RPCConn)
-	admin, err := p.checkAuth(request)
+func handleWebhook(request *rpc.HttpRequest) *rpc.HttpResponse {
+	admin, err := checkAuth(request)
 	if err != nil {
 		return &rpc.HttpResponse{
 			Body:   []byte(err.Error()),
@@ -120,11 +79,11 @@ func (p *webPlugin) handleWebhook(request *rpc.HttpRequest) *rpc.HttpResponse {
 	path = strings.TrimPrefix(path, "/")
 	if admin {
 		if strings.HasPrefix(path, "keys") {
-			return p.handleAdminKeys(request)
+			return handleAdminKeys(request)
 		}
 	}
 	if strings.HasPrefix(path, "sendmessage") {
-		return p.sendMessage(request, client)
+		return sendMessage(request)
 	}
 	return &rpc.HttpResponse{
 		Body:   []byte("Unknown"),
@@ -132,7 +91,7 @@ func (p *webPlugin) handleWebhook(request *rpc.HttpRequest) *rpc.HttpResponse {
 	}
 }
 
-func (p *webPlugin) handleAdminKeys(request *rpc.HttpRequest) *rpc.HttpResponse {
+func handleAdminKeys(request *rpc.HttpRequest) *rpc.HttpResponse {
 	switch request.Method {
 	case "POST":
 		body := &HookBody{}
@@ -143,9 +102,9 @@ func (p *webPlugin) handleAdminKeys(request *rpc.HttpRequest) *rpc.HttpResponse 
 				Status: http.StatusInternalServerError,
 			}
 		}
-		return p.addKey(body.Message)
+		return addKey(body.Message)
 	case "GET":
-		return p.listKeys()
+		return listKeys()
 	case "DELETE":
 		body := &HookBody{}
 		err := json.Unmarshal(request.Body, body)
@@ -155,7 +114,7 @@ func (p *webPlugin) handleAdminKeys(request *rpc.HttpRequest) *rpc.HttpResponse 
 				Status: http.StatusInternalServerError,
 			}
 		}
-		return p.deleteKey(body.Message)
+		return deleteKey(body.Message)
 	default:
 		return &rpc.HttpResponse{
 			Body:   []byte("Unknown action"),
@@ -164,8 +123,8 @@ func (p *webPlugin) handleAdminKeys(request *rpc.HttpRequest) *rpc.HttpResponse 
 	}
 }
 
-func (p *webPlugin) listKeys() *rpc.HttpResponse {
-	users := p.db.getUsers()
+func listKeys() *rpc.HttpResponse {
+	users := db.getUsers()
 	userJson, err := json.Marshal(&users)
 	if err != nil {
 		return &rpc.HttpResponse{
@@ -183,8 +142,8 @@ func (p *webPlugin) listKeys() *rpc.HttpResponse {
 	}
 }
 
-func (p *webPlugin) addKey(key string) *rpc.HttpResponse {
-	users := p.db.getUsers()
+func addKey(key string) *rpc.HttpResponse {
+	users := db.getUsers()
 	if len(users) > 0 {
 		found := false
 		for index := range users {
@@ -200,7 +159,7 @@ func (p *webPlugin) addKey(key string) *rpc.HttpResponse {
 			}
 		}
 	}
-	err := p.db.CreateUser(key)
+	err := db.CreateUser(key)
 	if err != nil {
 		return &rpc.HttpResponse{
 			Body:   []byte("Unable to get keys}"),
@@ -213,8 +172,8 @@ func (p *webPlugin) addKey(key string) *rpc.HttpResponse {
 	}
 }
 
-func (p *webPlugin) deleteKey(key string) *rpc.HttpResponse {
-	users := p.db.getUsers()
+func deleteKey(key string) *rpc.HttpResponse {
+	users := db.getUsers()
 	found := false
 	for index := range users {
 		if users[index] == key {
@@ -228,7 +187,7 @@ func (p *webPlugin) deleteKey(key string) *rpc.HttpResponse {
 			Status: http.StatusNotFound,
 		}
 	}
-	err := p.db.DeleteUser(key)
+	err := db.DeleteUser(key)
 	if err != nil {
 		return &rpc.HttpResponse{
 			Body:   []byte("Unable to get keys}"),
@@ -241,7 +200,7 @@ func (p *webPlugin) deleteKey(key string) *rpc.HttpResponse {
 	}
 }
 
-func (p *webPlugin) sendMessage(request *rpc.HttpRequest, client rpc.IRCPluginClient) *rpc.HttpResponse {
+func sendMessage(request *rpc.HttpRequest) *rpc.HttpResponse {
 	body := &HookBody{}
 	err := json.Unmarshal(request.Body, body)
 	if err != nil {
@@ -250,11 +209,8 @@ func (p *webPlugin) sendMessage(request *rpc.HttpRequest, client rpc.IRCPluginCl
 			Status: http.StatusInternalServerError,
 		}
 	}
-	_, err = client.SendChannelMessage(rpc.CtxWithToken(context.Background(), "bearer", *RPCToken), &rpc.ChannelMessage{
-		Channel: *Channel,
-		Message: body.Message,
-	})
-	if err != nil {
+	errs := helper.SendIRCMessage(*Channel, []string{body.Message})
+	if len(errs) > 0 {
 		return &rpc.HttpResponse{
 			Body:   []byte("Unable to send"),
 			Status: http.StatusInternalServerError,
