@@ -24,10 +24,10 @@ var (
 	db            *DB
 	helper        plugins.PluginHelper
 	WebPathPrefix = "webhook"
+	log           = logger.CreateLogger(*Debug)
 )
 
 func main() {
-	log := logger.CreateLogger(*Debug)
 	log.Infof("Starting webhook plugin")
 	err := envflag.Parse()
 	if err != nil {
@@ -73,6 +73,7 @@ func handleWebhook(request *rpc.HttpRequest) *rpc.HttpResponse {
 			Status: http.StatusUnauthorized,
 		}
 	}
+	log.Infof("Received webhook: %s", request.Path)
 	path := strings.ToLower(request.Path)
 	path = strings.TrimPrefix(path, "/")
 	path = strings.TrimPrefix(path, WebPathPrefix)
