@@ -46,7 +46,7 @@ func main() {
 	}
 	err = helper.RegisterWebhook(WebPathPrefix, handleWebhook)
 	if err != nil {
-		log.Fatalf("Unable to create helper: %s", err.Error())
+		log.Fatalf("Unable to register webhook: %s", err.Error())
 		return
 	}
 }
