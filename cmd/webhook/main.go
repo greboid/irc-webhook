@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"github.com/greboid/irc/v2/logger"
-	"github.com/greboid/irc/v2/plugins"
-	"github.com/greboid/irc/v2/rpc"
+	"fmt"
+	"github.com/greboid/irc/v3/logger"
+	"github.com/greboid/irc/v3/plugins"
+	"github.com/greboid/irc/v3/rpc"
 	"github.com/kouhin/envflag"
 	"net/http"
 	"strings"
@@ -22,7 +23,7 @@ var (
 	DBPath        = flag.String("db-path", "/data/db", "Path to token database")
 	AdminKey      = flag.String("admin-key", "", "Admin key for API")
 	db            *DB
-	helper        plugins.PluginHelper
+	helper        *plugins.PluginHelper
 	WebPathPrefix = "webhook"
 	log           = logger.CreateLogger(*Debug)
 )
@@ -39,7 +40,7 @@ func main() {
 		log.Fatalf("Unable to load config: %s", err.Error())
 		return
 	}
-	helper, err = plugins.NewHelper(*RPCHost, uint16(*RPCPort), *RPCToken)
+	helper, err = plugins.NewHelper(fmt.Sprintf("%s:%d", *RPCHost, uint16(*RPCPort)), *RPCToken)
 	if err != nil {
 		log.Fatalf("Unable to create helper: %s", err.Error())
 		return
@@ -210,8 +211,8 @@ func sendMessage(request *rpc.HttpRequest) *rpc.HttpResponse {
 			Status: http.StatusInternalServerError,
 		}
 	}
-	errs := helper.SendIRCMessage(*Channel, []string{body.Message})
-	if len(errs) > 0 {
+	err = helper.SendChannelMessage(*Channel, body.Message)
+	if err != nil {
 		return &rpc.HttpResponse{
 			Body:   []byte("Unable to send"),
 			Status: http.StatusInternalServerError,
