@@ -106,8 +106,10 @@ github.com/google/pprof v0.0.0-20200708004538-1a94d8640e99/go.mod h1:ZgVRPoUq/hf
 github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
 github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+vpHVxEJEs9eg=
 github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
-github.com/greboid/irc/v3 v3.0.1 h1:aSoKDnC0P3eXaUk/OLg7QzJfBF4E47XwcLmufvllhsQ=
-github.com/greboid/irc/v3 v3.0.1/go.mod h1:gnc8yyD5npBR4H2uLsPliihaT4Qhu5rtPhdQTMC3VjQ=
+github.com/greboid/irc-bot/v4 v4.0.0 h1:gGU3a6D2fFvLYpOszcVAayiSiSOl3jE/4TusFkB6hHQ=
+github.com/greboid/irc-bot/v4 v4.0.0/go.mod h1:ylwr4/+6zAx+KCYoP6nXhBeZ1HzE8I/qsNFZm59YBCU=
+github.com/greboid/irc/v4 v4.0.0 h1:iZIwdjyCi6aGMb2WQnOsOFyZcvvHOqFDPVLbF5Y01v0=
+github.com/greboid/irc/v4 v4.0.0/go.mod h1:Qb7pgbXnv57ypeRs+LoZCCZcM0ts5iUpLFRxJJyXa2g=
 github.com/grpc-ecosystem/go-grpc-middleware v1.2.2 h1:FlFbCRLd5Jr4iYXZufAvgWN6Ao0JrI5chLINnUXDDr0=
 github.com/grpc-ecosystem/go-grpc-middleware v1.2.2/go.mod h1:EaizFBKfUKtMIF5iaDEhniwNedqGo9FuLFzppDr3uwI=
 github.com/hashicorp/golang-lru v0.5.0/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
