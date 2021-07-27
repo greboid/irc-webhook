@@ -5,30 +5,32 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/greboid/irc-bot/v4/plugins"
-	"github.com/greboid/irc-bot/v4/rpc"
-	"github.com/greboid/irc/v4/logger"
-	"github.com/kouhin/envflag"
 	"net/http"
 	"strings"
+
+	"github.com/greboid/irc-bot/v4/plugins"
+	"github.com/greboid/irc-bot/v4/rpc"
+	"github.com/kouhin/envflag"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
-	RPCHost  = flag.String("rpc-host", "localhost", "gRPC server to connect to")
-	RPCPort  = flag.Int("rpc-port", 8001, "gRPC server port")
-	RPCToken = flag.String("rpc-token", "", "gRPC authentication token")
-	Channel  = flag.String("channel", "", "Channel to send messages to")
-	Debug    = flag.Bool("debug", false, "Show debugging info")
-
+	RPCHost       = flag.String("rpc-host", "localhost", "gRPC server to connect to")
+	RPCPort       = flag.Int("rpc-port", 8001, "gRPC server port")
+	RPCToken      = flag.String("rpc-token", "", "gRPC authentication token")
+	Channel       = flag.String("channel", "", "Channel to send messages to")
+	Debug         = flag.Bool("debug", false, "Show debugging info")
 	DBPath        = flag.String("db-path", "/data/db", "Path to token database")
 	AdminKey      = flag.String("admin-key", "", "Admin key for API")
 	db            *DB
 	helper        *plugins.PluginHelper
 	WebPathPrefix = "webhook"
-	log           = logger.CreateLogger(*Debug)
+	log           *zap.SugaredLogger
 )
 
 func main() {
+	log = CreateLogger(*Debug)
 	log.Infof("Starting webhook plugin")
 	err := envflag.Parse()
 	if err != nil {
@@ -226,4 +228,24 @@ func sendMessage(request *rpc.HttpRequest) *rpc.HttpResponse {
 
 type HookBody struct {
 	Message string
+}
+
+func CreateLogger(debug bool) *zap.SugaredLogger {
+	zapConfig := zap.NewDevelopmentConfig()
+	zapConfig.DisableCaller = !debug
+	zapConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	zapConfig.DisableStacktrace = !debug
+	zapConfig.OutputPaths = []string{"stdout"}
+	if debug {
+		zapConfig.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	} else {
+		zapConfig.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	}
+
+	logger, err := zapConfig.Build()
+	if err != nil {
+		log.Fatalf("Unable to create logger: %s", err.Error())
+		panic(err)
+	}
+	return logger.Sugar()
 }
