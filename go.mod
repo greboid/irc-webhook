@@ -14,7 +14,7 @@ require (
 	github.com/greboid/irc/v6 v6.0.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
-	github.com/tidwall/btree v0.5.0 // indirect
+	github.com/tidwall/btree v0.6.0 // indirect
 	github.com/tidwall/gjson v1.8.0 // indirect
 	github.com/tidwall/grect v0.1.2 // indirect
 	github.com/tidwall/match v1.0.3 // indirect
