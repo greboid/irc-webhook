@@ -5,7 +5,7 @@ Plugin for [IRC-Bot](https://github.com/greboid/irc-bot)
 Receives notifications from a URL instance and outputs them to a channel.
 
  - go build go build github.com/greboid/irc-webhook/v2/cmd/webhook
- - docker run greboid/irc-webhook
+ - docker run ghcr.io/greboid/irc-webhook
  
 #### Configuration
 
@@ -26,7 +26,7 @@ Once configured the following routes are available:
 version: "3.5"
 service:
   goplum:
-    image: greboid/irc-webhook
+    image: ghcr.io/greboid/irc-webhook
     environment:
       RPC_HOST: bot
       RPC_TOKEN: <as configured on the bot>
