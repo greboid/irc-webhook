@@ -1,4 +1,4 @@
-FROM golang:latest as builder
+FROM registry.greboid.com/mirror/golang:latest as builder
 
 ENV USER=appuser
 ENV UID=10001
