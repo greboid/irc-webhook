@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/greboid/irc-bot/v4 v4.1.0
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
-	github.com/tidwall/buntdb v1.2.9
+	github.com/tidwall/buntdb v1.2.10
 	go.uber.org/zap v1.23.0
 )
 
@@ -14,8 +14,8 @@ require (
 	github.com/greboid/irc/v6 v6.0.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
-	github.com/tidwall/btree v1.1.0 // indirect
-	github.com/tidwall/gjson v1.12.1 // indirect
+	github.com/tidwall/btree v1.4.2 // indirect
+	github.com/tidwall/gjson v1.14.3 // indirect
 	github.com/tidwall/grect v0.1.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
