@@ -1,6 +1,6 @@
 module github.com/greboid/irc-webhook/v4
 
-go 1.19
+go 1.18
 
 require (
 	github.com/greboid/irc-bot/v4 v4.1.0
