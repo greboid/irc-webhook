@@ -15,11 +15,11 @@ jobs:
 
       - name: Generate tags
         id: tags
-        uses: greboid/docker-tags-action@v5.0.4
+        uses: greboid/docker-tags-action@v6.0.0
         with:
           separator: ' '
           fullname: 'false'
-
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build image
         id: build-image-auth
         uses: redhat-actions/buildah-build@v2.10
