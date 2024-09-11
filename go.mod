@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/greboid/irc-bot/v4 v4.1.0
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
-	github.com/tidwall/buntdb v1.3.1
+	github.com/tidwall/buntdb v1.3.2
 	go.uber.org/zap v1.27.0
 )
 
