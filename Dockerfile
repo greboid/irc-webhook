@@ -1,24 +1,12 @@
-FROM ghcr.io/greboid/dockerfiles/golang as builder
-
-ENV USER=appuser
-ENV UID=10001
-
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/nonexistent" \
-    --shell "/sbin/nologin" \
-    --no-create-home \
-    --uid "${UID}" \
-    "${USER}"
+FROM docker.io/library/golang:1.23 AS builder
 
 WORKDIR /app
 COPY . /app
 RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -trimpath -ldflags=-buildid= -o main ./cmd/webhook
-
+RUN mkdir /data
 
 FROM ghcr.io/greboid/dockerfiles/base
 
 COPY --from=builder /app/main /irc-webhook
-USER appuser:appuser
+COPY --from=builder --chown=65532:65532 /data /data
 CMD ["/irc-webhook"]
