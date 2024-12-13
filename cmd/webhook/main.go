@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/greboid/irc-bot/v4/plugins"
@@ -16,17 +17,18 @@ import (
 )
 
 var (
-	RPCHost       = flag.String("rpc-host", "localhost", "gRPC server to connect to")
-	RPCPort       = flag.Int("rpc-port", 8001, "gRPC server port")
-	RPCToken      = flag.String("rpc-token", "", "gRPC authentication token")
-	Channel       = flag.String("channel", "", "Channel to send messages to")
-	Debug         = flag.Bool("debug", false, "Show debugging info")
-	DBPath        = flag.String("db-path", "/data/db", "Path to token database")
-	AdminKey      = flag.String("admin-key", "", "Admin key for API")
-	db            *DB
-	helper        *plugins.PluginHelper
-	WebPathPrefix = "webhook"
-	log           *zap.SugaredLogger
+	RPCHost         = flag.String("rpc-host", "localhost", "gRPC server to connect to")
+	RPCPort         = flag.Int("rpc-port", 8001, "gRPC server port")
+	RPCToken        = flag.String("rpc-token", "", "gRPC authentication token")
+	Channel         = flag.String("channel", "", "Channel to send messages to")
+	AllowedChannels = flag.String("allowed-channels", "", "Comma-separated list of allowed channels")
+	Debug           = flag.Bool("debug", false, "Show debugging info")
+	DBPath          = flag.String("db-path", "/data/db", "Path to token database")
+	AdminKey        = flag.String("admin-key", "", "Admin key for API")
+	db              *DB
+	helper          *plugins.PluginHelper
+	WebPathPrefix   = "webhook"
+	log             *zap.SugaredLogger
 )
 
 func main() {
@@ -66,6 +68,25 @@ func checkAuth(request *rpc.HttpRequest) (bool, error) {
 		}
 	}
 	return false, errors.New("unauthorized")
+}
+
+func checkChannel(channel string) (string, error) {
+	if channel == "" {
+		// No channel specified, use the default
+		return *Channel, nil
+	}
+
+	if *AllowedChannels == "*" {
+		// Any channel is allowed, use whatever we're given
+		return channel, nil
+	}
+
+	channels := strings.Split(strings.ToLower(*AllowedChannels), ",")
+	if slices.Contains(channels, strings.ToLower(channel)) {
+		return channel, nil
+	} else {
+		return "", errors.New("unauthorized channel")
+	}
 }
 
 func handleWebhook(request *rpc.HttpRequest) *rpc.HttpResponse {
@@ -213,7 +234,16 @@ func sendMessage(request *rpc.HttpRequest) *rpc.HttpResponse {
 			Status: http.StatusInternalServerError,
 		}
 	}
-	err = helper.SendChannelMessage(*Channel, body.Message)
+
+	channel, err := checkChannel(body.Channel)
+	if err != nil {
+		return &rpc.HttpResponse{
+			Body:   []byte(err.Error()),
+			Status: http.StatusUnauthorized,
+		}
+	}
+
+	err = helper.SendChannelMessage(channel, body.Message)
 	if err != nil {
 		return &rpc.HttpResponse{
 			Body:   []byte("Unable to send"),
@@ -228,6 +258,7 @@ func sendMessage(request *rpc.HttpRequest) *rpc.HttpResponse {
 
 type HookBody struct {
 	Message string
+	Channel string
 }
 
 func CreateLogger(debug bool) *zap.SugaredLogger {
