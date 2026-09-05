@@ -5,17 +5,15 @@ go 1.24.0
 toolchain go1.24.1
 
 require (
-	github.com/greboid/irc-bot/v4 v4.1.0
+	github.com/greboid/irc-bot/v5 v5.0.8
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
 	github.com/tidwall/buntdb v1.3.2
 	go.uber.org/zap v1.27.1
 )
 
 require (
-	github.com/golang/protobuf v1.5.4 // indirect
-	github.com/greboid/irc/v6 v6.0.0 // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
-	github.com/imdario/mergo v0.3.13 // indirect
+	github.com/ergochat/irc-go v0.4.0 // indirect
+	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/tidwall/btree v1.6.0 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/grect v0.1.4 // indirect
@@ -27,8 +25,8 @@ require (
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
-	golang.org/x/time v0.3.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )
