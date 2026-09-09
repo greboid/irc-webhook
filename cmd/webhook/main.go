@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/greboid/irc-bot/v4/plugins"
-	"github.com/greboid/irc-bot/v4/rpc"
+	"github.com/greboid/irc-bot/v5/plugins"
+	"github.com/greboid/irc-bot/v5/rpc"
 	"github.com/kouhin/envflag"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
