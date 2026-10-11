@@ -102,29 +102,35 @@ func checkChannel(channel string) (string, error) {
 }
 
 func handleWebhook(request *rpc.HttpRequest) *rpc.HttpResponse {
-	admin, err := checkAuth(request)
-	if err != nil {
-		return &rpc.HttpResponse{
-			Body:   []byte(err.Error()),
-			Status: http.StatusUnauthorized,
-		}
-	}
 	log.Infof("Received webhook: %s", request.Path)
 	path := strings.ToLower(request.Path)
 	path = strings.TrimPrefix(path, "/")
 	path = strings.TrimPrefix(path, WebPathPrefix)
 	path = strings.TrimPrefix(path, "/")
-	if admin {
-		if strings.HasPrefix(path, "keys") {
+	if strings.HasPrefix(path, "sendmessage") {
+		if _, err := checkAuth(request); err != nil {
+			return &rpc.HttpResponse{
+				Body:   []byte(err.Error()),
+				Status: http.StatusUnauthorized,
+			}
+		}
+		return sendMessage(request)
+	}
+	if strings.HasPrefix(path, "keys") {
+		admin, err := checkAuth(request)
+		if err != nil {
+			return &rpc.HttpResponse{
+				Body:   []byte(err.Error()),
+				Status: http.StatusUnauthorized,
+			}
+		}
+		if admin {
 			return handleAdminKeys(request)
 		}
 	}
-	if strings.HasPrefix(path, "sendmessage") {
-		return sendMessage(request)
-	}
 	return &rpc.HttpResponse{
-		Body:   []byte("Unknown"),
-		Status: http.StatusBadRequest,
+		Body:   []byte("Not found"),
+		Status: http.StatusNotFound,
 	}
 }
 
