@@ -10,3 +10,5 @@
 data
 config.yaml
 .cache
+
+/webhook

@@ -2,8 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"slices"
+
 	"github.com/tidwall/buntdb"
 )
+
+const usersKey = "users"
 
 type DB struct {
 	path string
@@ -30,58 +35,76 @@ func NewDB(path string) (*DB, error) {
 	return db, nil
 }
 
-func (db *DB) setKey(key string, value string) error {
+// readUsers returns the stored user list, treating a missing key as empty.
+func readUsers(tx *buntdb.Tx) ([]string, error) {
+	value, err := tx.Get(usersKey)
+	if err != nil {
+		if errors.Is(err, buntdb.ErrNotFound) {
+			return []string{}, nil
+		}
+		return nil, err
+	}
+	var users []string
+	if err := json.Unmarshal([]byte(value), &users); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+func (db *DB) getUsers() ([]string, error) {
+	var users []string
+	err := db.Db.View(func(tx *buntdb.Tx) error {
+		var err error
+		users, err = readUsers(tx)
+		return err
+	})
+	return users, err
+}
+
+func (db *DB) CheckUser(key string) bool {
+	users, err := db.getUsers()
+	if err != nil {
+		return false
+	}
+	return slices.Contains(users, key)
+}
+
+func (db *DB) CreateUser(token string) error {
 	err := db.Db.Update(func(tx *buntdb.Tx) error {
-		_, _, err := tx.Set(key, value, nil)
+		users, err := readUsers(tx)
+		if err != nil {
+			return err
+		}
+		value, err := json.Marshal(append(users, token))
+		if err != nil {
+			return err
+		}
+		_, _, err = tx.Set(usersKey, string(value), nil)
 		return err
 	})
 	return err
 }
 
-func (db *DB) getKey(key string) (string, error) {
-	var value string
-	var err error
-	err = db.Db.View(func(tx *buntdb.Tx) error {
-		dbValue, err := tx.Get(key)
+func (db *DB) DeleteUser(token string) error {
+	err := db.Db.Update(func(tx *buntdb.Tx) error {
+		users, err := readUsers(tx)
 		if err != nil {
 			return err
 		}
-		value = dbValue
-		return nil
-	})
-	return value, err
-}
-
-func (db *DB) getUsers() []string {
-	dataString, err := db.getKey("users")
-	if err != nil {
-		return []string{}
-	}
-	var data []string
-	err = json.Unmarshal([]byte(dataString), &data)
-	if err != nil {
-		return []string{}
-	}
-	return data
-}
-
-func (db *DB) CheckUser(key string) bool {
-	users := db.getUsers()
-	for _, user := range users {
-		if user == key {
-			return true
+		newUsers := make([]string, 0, len(users))
+		for _, user := range users {
+			if user != token {
+				newUsers = append(newUsers, user)
+			}
 		}
-	}
-	return false
-}
-
-func (db *DB) CreateUser(token string) error {
-	tokens := append(db.getUsers(), token)
-	value, err := json.Marshal(&tokens)
-	if err != nil {
+		value, err := json.Marshal(&newUsers)
+		if err != nil {
+			return err
+		}
+		_, _, err = tx.Set(usersKey, string(value), nil)
 		return err
-	}
-	return db.setKey("users", string(value))
+	})
+	return err
 }
 
 func (db *DB) InitDB() error {
@@ -91,19 +114,4 @@ func (db *DB) InitDB() error {
 	}
 	db.Db = instance
 	return nil
-}
-
-func (db *DB) DeleteUser(token string) error {
-	tokens := db.getUsers()
-	newTokens := make([]string, 0)
-	for index := range tokens {
-		if tokens[index] != token {
-			newTokens = append(newTokens, tokens[index])
-		}
-	}
-	value, err := json.Marshal(&newTokens)
-	if err != nil {
-		return err
-	}
-	return db.setKey("users", string(value))
 }

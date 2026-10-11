@@ -1,11 +1,13 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 
@@ -32,16 +34,23 @@ var (
 )
 
 func main() {
-	log = CreateLogger(*Debug)
-	log.Infof("Starting webhook plugin")
 	err := envflag.Parse()
 	if err != nil {
-		log.Fatalf("Unable to load config: %s", err.Error())
-		return
+		fmt.Fprintf(os.Stderr, "Unable to load config: %s\n", err.Error())
+		os.Exit(1)
+	}
+	log, err = CreateLogger(*Debug)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to create logger: %s\n", err.Error())
+		os.Exit(1)
+	}
+	log.Infof("Starting webhook plugin")
+	if *AdminKey == "" {
+		log.Fatalf("Admin key must be set")
 	}
 	db, err = NewDB(*DBPath)
 	if err != nil {
-		log.Fatalf("Unable to load config: %s", err.Error())
+		log.Fatalf("Unable to open database: %s", err.Error())
 		return
 	}
 	helper, err = plugins.NewHelper(fmt.Sprintf("%s:%d", *RPCHost, uint16(*RPCPort)), *RPCToken)
@@ -59,7 +68,10 @@ func main() {
 func checkAuth(request *rpc.HttpRequest) (bool, error) {
 	for index := range request.Header {
 		if strings.ToLower(request.Header[index].Key) == "x-api-key" {
-			if request.Header[index].Value == *AdminKey {
+			if request.Header[index].Value == "" {
+				continue
+			}
+			if subtle.ConstantTimeCompare([]byte(request.Header[index].Value), []byte(*AdminKey)) == 1 {
 				return true, nil
 			}
 			if db.CheckUser(request.Header[index].Value) {
@@ -124,7 +136,7 @@ func handleAdminKeys(request *rpc.HttpRequest) *rpc.HttpResponse {
 		if err != nil {
 			return &rpc.HttpResponse{
 				Body:   []byte("Unable to decode"),
-				Status: http.StatusInternalServerError,
+				Status: http.StatusBadRequest,
 			}
 		}
 		return addKey(body.Message)
@@ -136,7 +148,7 @@ func handleAdminKeys(request *rpc.HttpRequest) *rpc.HttpResponse {
 		if err != nil {
 			return &rpc.HttpResponse{
 				Body:   []byte("Unable to decode"),
-				Status: http.StatusInternalServerError,
+				Status: http.StatusBadRequest,
 			}
 		}
 		return deleteKey(body.Message)
@@ -149,7 +161,13 @@ func handleAdminKeys(request *rpc.HttpRequest) *rpc.HttpResponse {
 }
 
 func listKeys() *rpc.HttpResponse {
-	users := db.getUsers()
+	users, err := db.getUsers()
+	if err != nil {
+		return &rpc.HttpResponse{
+			Body:   []byte("Unable to get keys"),
+			Status: http.StatusInternalServerError,
+		}
+	}
 	userJson, err := json.Marshal(&users)
 	if err != nil {
 		return &rpc.HttpResponse{
@@ -168,26 +186,29 @@ func listKeys() *rpc.HttpResponse {
 }
 
 func addKey(key string) *rpc.HttpResponse {
-	users := db.getUsers()
-	if len(users) > 0 {
-		found := false
-		for index := range users {
-			if users[index] == key {
-				found = true
-				break
-			}
-		}
-		if found {
-			return &rpc.HttpResponse{
-				Body:   []byte("User exists"),
-				Status: http.StatusNoContent,
-			}
+	if key == "" {
+		return &rpc.HttpResponse{
+			Body:   []byte("Key must not be empty"),
+			Status: http.StatusBadRequest,
 		}
 	}
-	err := db.CreateUser(key)
+	users, err := db.getUsers()
 	if err != nil {
 		return &rpc.HttpResponse{
-			Body:   []byte("Unable to get keys}"),
+			Body:   []byte("Unable to add key"),
+			Status: http.StatusInternalServerError,
+		}
+	}
+	if slices.Contains(users, key) {
+		return &rpc.HttpResponse{
+			Body:   []byte("User exists"),
+			Status: http.StatusNoContent,
+		}
+	}
+	err = db.CreateUser(key)
+	if err != nil {
+		return &rpc.HttpResponse{
+			Body:   []byte("Unable to add key"),
 			Status: http.StatusInternalServerError,
 		}
 	}
@@ -198,24 +219,23 @@ func addKey(key string) *rpc.HttpResponse {
 }
 
 func deleteKey(key string) *rpc.HttpResponse {
-	users := db.getUsers()
-	found := false
-	for index := range users {
-		if users[index] == key {
-			found = true
-			break
+	users, err := db.getUsers()
+	if err != nil {
+		return &rpc.HttpResponse{
+			Body:   []byte("Unable to delete key"),
+			Status: http.StatusInternalServerError,
 		}
 	}
-	if !found {
+	if !slices.Contains(users, key) {
 		return &rpc.HttpResponse{
 			Body:   []byte("User not found"),
 			Status: http.StatusNotFound,
 		}
 	}
-	err := db.DeleteUser(key)
+	err = db.DeleteUser(key)
 	if err != nil {
 		return &rpc.HttpResponse{
-			Body:   []byte("Unable to get keys}"),
+			Body:   []byte("Unable to delete key"),
 			Status: http.StatusInternalServerError,
 		}
 	}
@@ -231,7 +251,7 @@ func sendMessage(request *rpc.HttpRequest) *rpc.HttpResponse {
 	if err != nil {
 		return &rpc.HttpResponse{
 			Body:   []byte("Unable to decode"),
-			Status: http.StatusInternalServerError,
+			Status: http.StatusBadRequest,
 		}
 	}
 
@@ -261,7 +281,7 @@ type HookBody struct {
 	Channel string
 }
 
-func CreateLogger(debug bool) *zap.SugaredLogger {
+func CreateLogger(debug bool) (*zap.SugaredLogger, error) {
 	zapConfig := zap.NewDevelopmentConfig()
 	zapConfig.DisableCaller = !debug
 	zapConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
@@ -275,8 +295,7 @@ func CreateLogger(debug bool) *zap.SugaredLogger {
 
 	logger, err := zapConfig.Build()
 	if err != nil {
-		log.Fatalf("Unable to create logger: %s", err.Error())
-		panic(err)
+		return nil, err
 	}
-	return logger.Sugar()
+	return logger.Sugar(), nil
 }
