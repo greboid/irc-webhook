@@ -46,17 +46,18 @@ Content-Type: application/json
   "channel": "#some-non-default-channel"
 }
 ```
-| Status | Body                   | Condition                          |
-| ------ | ---------------------- | ---------------------------------- |
-| `200`  | `Delivered`            | Message sent                       |
-| `400`  | `Unable to decode`     | Body is not valid JSON             |
-| `401`  | `unauthorized`         | Missing, invalid, or non-admin key |
-| `401`  | `unauthorized channel` | Channel not in allowed list        |
-| `500`  | `Unable to send`       | IRC-bot rejected the message       |
+
+| Status | Body                   | Condition                    |
+| ------ | ---------------------- | ---------------------------- |
+| `200`  | `Delivered`            | Message sent                 |
+| `400`  | `Unable to decode`     | Body is not valid JSON       |
+| `401`  | `unauthorized`         | Key missing or invalid       |
+| `401`  | `unauthorized channel` | Channel not in allowed list  |
+| `500`  | `Unable to send`       | IRC-bot rejected the message |
 
 #### /webhook/keys
 
-Manages the API keys permitted to send messages. Requires the admin key; other valid keys are rejected with `400 Unknown`.
+Manages the API keys permitted to send messages. Requires the admin key; other valid keys receive `404 Not found`.
 
 A GET request lists all existing keys:
 ```http
@@ -102,28 +103,32 @@ Content-Type: text/plain
 User deleted
 ```
 
-| Method | Status | Body                    | Condition                    |
-| ------ | ------ | ----------------------- | ---------------------------- |
-| any    | `400`  | `Unable to decode`      | Body is not valid JSON       |
-| any    | `401`  | `unauthorized`          | Key missing or not admin key |
-| GET    | `200`  | JSON array of keys      |                              |
-| GET    | `500`  | `Unable to get keys`    | Database error               |
-| POST   | `200`  | `User added`            | Key created                  |
-| POST   | `204`  | `User exists`           | Key already exists           |
-| POST   | `400`  | `Key must not be empty` | `message` field is empty     |
-| POST   | `500`  | `Unable to add key`     | Database error               |
-| DELETE | `200`  | `User deleted`          | Key removed                  |
-| DELETE | `404`  | `User not found`        | Key does not exist           |
-| DELETE | `500`  | `Unable to delete key`  | Database error               |
+| Method       | Status | Body                    | Condition                    |
+| ------------ | ------ | ----------------------- | ---------------------------- |
+| any          | `401`  | `unauthorized`          | Key missing or invalid       |
+| any          | `404`  | `Not found`             | Valid key, but not admin key |
+| other        | `400`  | `Unknown action`        | Method not GET/POST/DELETE   |
+| POST, DELETE | `400`  | `Unable to decode`      | Body is not valid JSON       |
+| GET          | `200`  | JSON array of keys      |                              |
+| GET          | `500`  | `Unable to get keys`    | Database error               |
+| POST         | `200`  | `User added`            | Key created                  |
+| POST         | `204`  | `User exists`           | Key already exists           |
+| POST         | `400`  | `Key must not be empty` | `message` field is empty     |
+| POST         | `500`  | `Unable to add key`     | Database error               |
+| DELETE       | `200`  | `User deleted`          | Key removed                  |
+| DELETE       | `404`  | `User not found`        | Key does not exist           |
+| DELETE       | `500`  | `Unable to delete key`  | Database error               |
 
 Keys are stored in a database file at the path set by `-db-path` and persist across restarts.
 
 #### Other paths
 
-Any other path returns `400` with the body `Unknown`.
+Any other path returns `404` with the body `Not found`.
+
+Paths are matched case-insensitively by prefix, so `/webhook/SendMessage` and `/webhook/sendmessage-anything` are both handled as `/webhook/sendmessage`.
 
 ### Multi-channel support
 
-By default, all messages are sent to the channel specified in the `channel` flag/env var.
+By default, all messages are sent to the channel specified in the `channel` flag/env var. This is not validated at startup; if it is unset, messages without a `channel` field are sent with an empty channel name.
 
 To enable multi-channel support, set `allowed-channels` to a comma-separated list of channels that clients may target (e.g. `#channel1,#channel2,#channel3`). Channel matching is case-insensitive. Setting `allowed-channels` to `*` allows clients to send messages to any channel.
